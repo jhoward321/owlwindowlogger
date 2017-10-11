@@ -15,7 +15,7 @@ def Write(data, logfile):
         data['ActiveText'] = data['ActiveText'].encode('string_escape')
         #add more data to make it freindly to Drupal date module
         text = json.dumps(data, separators=(',',':')) #compact
-        print (text)
+        print(logfile, text)
         f = open(logfile, 'a', )
         f.write (text + "\n")
         f.close()

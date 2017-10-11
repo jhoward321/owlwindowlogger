@@ -1,25 +1,27 @@
-#encoding:UTF-8
 
-'''
-Created on Dec 28, 2011
-
-@author: Sean Buscay
-'''
+"""
+Originally from https://github.com/seanbuscay
+"""
 
 import wx
-import uuid
+import psutil #http://code.google.com/p/psutil/wiki/Documentation#Classes
+import win32api
 from win32gui import GetWindowText, GetForegroundWindow
-# @todo: prob remove strftime & localtime
+from win32process import GetWindowThreadProcessId
 from time import strftime, localtime, time
-# import owl custom modules
-import idledetect
-import threadname
-# import as logwrite so the module can be swapped out for other logwriters
-# such as: 
-# 1) import csvlogwrite as logwrite
-# 2) import sqlitelogwrite as logwrite
 import jsonlogwrite as logwrite
+
+def get_idle_duration():
+    "Returns idle time in seconds"
+    millis = win32api.GetTickCount() - win32api.GetLastInputInfo()
+    return millis / 1000.0
  
+def get_threadname(HWND):
+    "Return process info about a window handle id"
+    pprocess = GetWindowThreadProcessId(HWND)
+    p = psutil.Process(pprocess[1])
+    return p
+
 class TaskBarApp(wx.Frame):
     def __init__(self, parent, id, title):
         wx.Frame.__init__(self, parent, -1, title, size=(1, 1), style=wx.FRAME_NO_TASKBAR | wx.NO_FULL_REPAINT_ON_RESIZE)
@@ -34,7 +36,7 @@ class TaskBarApp(wx.Frame):
         self.SetIconTimer()
         self.Show(True)
         # setup logging
-        self.LogFile            = 'logs/' + strftime("%Y-%b-%d", localtime())
+        self.LogFile            = 'logs/' + strftime("%Y%m%d", localtime())
         # begin the data dictionary to be written as json entries in log
         self.Data               = {}
         # call SetFreshData() to get time and any other available data
@@ -91,33 +93,42 @@ class TaskBarApp(wx.Frame):
         except:
             pass
  
-    #logic in this function keeps it from logging an entry every second.
-    #instead it keeps adding up the idle stime
-    #tracks when the app window first went active
-    #writes tracking data upon change to next window
     def Log(self, evt):
-      if self.Data['Idle'] <  idledetect.get_idle_duration():
-         self.Data['Idle'] = idledetect.get_idle_duration()
+        idle_duration = get_idle_duration()
+        if self.Data['Idle'] < idle_duration:
+            self.Data['Idle'] = idle_duration
       
-      if self.Data['Idle'] >  idledetect.get_idle_duration(): #means we had activity since last
-         self.Data['TotalIdle'] = self.Data['TotalIdle'] + self.Data['Idle']
-         self.Data['Idle'] = 0
+        if self.Data['Idle'] > idle_duration:
+            # Lets log the idle time if we've been idle for more than 5 minutes
+            if self.Data['Idle'] > 5*60:
+                self.Data['Message'] = "idle_log"
+                logwrite.Write(self.Data, self.LogFile)
+                del self.Data['Message']
 
-      if self.Data['ActiveText']  != GetWindowText(GetForegroundWindow()):
-          p = threadname.get_threadname(self.Data['Active'])
-          self.Data['AppThread']   = p.name 
-          self.Data['AppThreadID'] = p.pid
-          self.Data['WinEnd']      = self.Now()
-          self.Data['date_end_time']   = strftime("%d %b %Y - %H:%M:%S")
-          logwrite.Write(self.Data,self.LogFile)
-          # reset data after log is written.
-          self.SetFreshData()
+            self.Data['TotalIdle'] = self.Data['TotalIdle'] + self.Data['Idle']
+            self.Data['Idle'] = 0
+
+        # If current window is different from the last time we checked, log the info about
+        # the previous one and start tracking the current one
+        if self.Data['Active'] != GetForegroundWindow():
+            try:
+                p = get_threadname(self.Data['Active'])
+                self.Data['AppThread']   = p.name()
+                self.Data['AppThreadID'] = p.pid
+            except:
+                self.Data['AppThread'] = "Unknown"
+                self.Data['AppThreadID'] = -1
+            self.Data['WinEnd'] = self.Now()
+            self.Data['date_end_time']   = strftime("%d %b %Y - %H:%M:%S")
+            logwrite.Write(self.Data,self.LogFile)
+            # reset data after log is written.
+            self.SetFreshData()
 
     def SetFreshData(self):
         self.Data.clear()
-        self.Data['Active']     = GetForegroundWindow()
-        activetext = GetWindowText(self.Data['Active'])    
-        self.Data['ActiveText'] = activetext
+        foreground_pid = GetForegroundWindow()
+        self.Data['Active'] = foreground_pid
+        self.Data['ActiveText'] = GetWindowText(foreground_pid)
         self.Data['Idle']       = 0
         self.Data['TotalIdle']  = 0
         self.Data['WinStart']   = self.Now()
