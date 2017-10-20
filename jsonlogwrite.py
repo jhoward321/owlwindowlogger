@@ -1,21 +1,15 @@
-#encoding:UTF-8
+import datetime
+try:
+    import simplejson as json
+except ImportError:
+    import json
 
-#@change: for above see http://www.python.org/dev/peps/pep-0263/
-#@change: switch to using simplejson when available attempting to remove erros
-try: import simplejson as json
-except ImportError: import json
-
-from time import localtime, time, strftime
-import uuid
-def Write(data, logfile):
-        logfile = logfile + '.log'
-        data['Timestamp'] = int(time())
-        data['GUID'] = str(uuid.uuid4())
-        data['date_time_stamp'] = strftime("%d %b %Y - %H:%M:%S")
-        data['ActiveText'] = data['ActiveText'].encode('string_escape')
-        #add more data to make it freindly to Drupal date module
-        text = json.dumps(data, separators=(',',':')) #compact
-        print(logfile, text)
-        f = open(logfile, 'a', )
-        f.write (text + "\n")
-        f.close()
+def write(data, logfile):
+    data = data
+    data['log_timestamp'] = str(datetime.datetime.now())
+    if 'window_title' in data:
+        data['window_title'] = data['window_title'].encode('string_escape')
+    text = json.dumps(data, separators=(',',':')) #compact
+    print(logfile, text)
+    with open(logfile, 'a') as fp:
+        fp.write(text + '\n')

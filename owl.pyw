@@ -8,7 +8,7 @@ import psutil #http://code.google.com/p/psutil/wiki/Documentation#Classes
 import win32api
 from win32gui import GetWindowText, GetForegroundWindow
 from win32process import GetWindowThreadProcessId
-from time import strftime, localtime, time
+import datetime
 import jsonlogwrite as logwrite
 
 def get_idle_duration():
@@ -32,20 +32,16 @@ class TaskBarApp(wx.Frame):
         self.tbicon.SetIcon(icon, 'Logging')
         self.tbicon.Bind(wx.EVT_TASKBAR_LEFT_DCLICK, self.OnTaskBarLeftDClick)
         self.tbicon.Bind(wx.EVT_TASKBAR_RIGHT_UP, self.OnTaskBarRightClick)
-        self.Bind(wx.EVT_TIMER, self.Log, id=self.ID_ICON_TIMER)
+        self.Bind(wx.EVT_TIMER, self.on_timer, id=self.ID_ICON_TIMER)
         self.SetIconTimer()
         self.Show(True)
-        # setup logging
-        self.LogFile            = 'logs/' + strftime("%Y%m%d", localtime())
-        # begin the data dictionary to be written as json entries in log
-        self.Data               = {}
-        # call SetFreshData() to get time and any other available data
-        self.SetFreshData()
-        self.Data['Message'] = 'Starting a new logging session.'
-        # write a session startup entry
-        logwrite.Write(self.Data,self.LogFile)
-        # most always set fresh data after logging
-        self.SetFreshData()
+        self.last_idle = 0
+        self.logfile = "logs/" + datetime.datetime.now().strftime('%Y%m%d.log')
+        self.logger_check = 0
+
+        # Startup logging
+        logwrite.write(dict(log_message="Startup"), self.logfile)
+        self.new_active_window()
         
     def OnTaskBarLeftDClick(self, evt):
         if self.ICON_STATE == 0:
@@ -61,11 +57,10 @@ class TaskBarApp(wx.Frame):
  
     def OnTaskBarRightClick(self, evt):
         # @todo: Find better way to make sure all threads close.
+        logwrite.write(dict(log_message="user shutdown, right clicked"), self.logfile)
         self.StopIconTimer()
         self.tbicon.Destroy()
         self.Close(True)
-        self.Data['Message'] = 'Owl Timer Shutting Down.'
-        logwrite.Write(self.Data,self.LogFile)
         wx.GetApp().ProcessIdle()
         wx.GetApp().Exit()
         wx.Exit()
@@ -73,71 +68,63 @@ class TaskBarApp(wx.Frame):
     def SetIconTimer(self):
         self.icontimer = wx.Timer(self, self.ID_ICON_TIMER)
         self.icontimer.Start(1000)
-
  
     def StartIconTimer(self):
         try:
             self.icontimer.Start(1000)
-            self.Data['Message'] = 'Starting timer.'
-            logwrite.Write(self.Data,self.LogFile)
-            self.SetFreshData()
+            logwrite.write(dict(log_message="Starting timer"), self.logfile)
+            self.new_active_window()
         except:
             pass
  
     def StopIconTimer(self):
         try:
             self.icontimer.Stop()
-            self.Data['Message'] = 'Stopping timer.'
-            logwrite.Write(self.Data,self.LogFile)
-            self.SetFreshData()
+            logwrite.write(self.data, self.logfile)
+            logwrite.write(dict(log_message="Timer stopped"), self.logfile)
+            self.new_active_window()
         except:
             pass
  
-    def Log(self, evt):
+    def on_timer(self, evt):
         idle_duration = get_idle_duration()
-        if self.Data['Idle'] < idle_duration:
-            self.Data['Idle'] = idle_duration
+        if self.last_idle < idle_duration:
+            # idle is growing, just keep tracking it
+            self.last_idle = idle_duration
       
-        if self.Data['Idle'] > idle_duration:
-            # Lets log the idle time if we've been idle for more than 5 minutes
-            if self.Data['Idle'] > 5*60:
-                self.Data['Message'] = "idle_log"
-                logwrite.Write(self.Data, self.LogFile)
-                del self.Data['Message']
-
-            self.Data['TotalIdle'] = self.Data['TotalIdle'] + self.Data['Idle']
-            self.Data['Idle'] = 0
+        if self.last_idle > idle_duration:
+            # idle got smaller, add the previous idle value to total_idle and keep going
+            self.data['idle_seconds'] = self.data['idle_seconds'] + self.last_idle
+            self.last_idle = 0
 
         # If current window is different from the last time we checked, log the info about
         # the previous one and start tracking the current one
-        if self.Data['Active'] != GetForegroundWindow():
-            try:
-                p = get_threadname(self.Data['Active'])
-                self.Data['AppThread']   = p.name()
-                self.Data['AppThreadID'] = p.pid
-            except:
-                self.Data['AppThread'] = "Unknown"
-                self.Data['AppThreadID'] = -1
-            self.Data['WinEnd'] = self.Now()
-            self.Data['date_end_time']   = strftime("%d %b %Y - %H:%M:%S")
-            logwrite.Write(self.Data,self.LogFile)
-            # reset data after log is written.
-            self.SetFreshData()
+        active_hwnd = GetForegroundWindow()
+        window_title = GetWindowText(active_hwnd)
+        if self.data['hwnd'] != active_hwnd or self.data['window_title'] != window_title:
+            self.data['end_timestamp'] = str(datetime.datetime.now())
+            logwrite.write(self.data, self.logfile)
+            self.new_active_window()
 
-    def SetFreshData(self):
-        self.Data.clear()
-        foreground_pid = GetForegroundWindow()
-        self.Data['Active'] = foreground_pid
-        self.Data['ActiveText'] = GetWindowText(foreground_pid)
-        self.Data['Idle']       = 0
-        self.Data['TotalIdle']  = 0
-        self.Data['WinStart']   = self.Now()
-        self.Data['date_start_time'] = strftime("%d %b %Y - %H:%M:%S")
+        # update the log filename every 120s
+        self.logger_check += 1
+        if self.logger_check % 120 == 0:
+            self.logfile = "logs/" + datetime.datetime.now().strftime('%Y%m%d.log')
+            self.logger_check = 0
+
+    def new_active_window(self):
+        self.data = {}
+
+        active_hwnd = GetForegroundWindow()
+        self.data['hwnd'] = active_hwnd
+        self.data['window_title'] = GetWindowText(active_hwnd)
+
+        procinfo = get_threadname(active_hwnd)
+        self.data['process_name'] = procinfo.name()
+        self.data['pid'] = procinfo.pid
+        self.data['idle_seconds'] = 0
+        self.data['start_timestamp'] = str(datetime.datetime.now())
     
-    def Now(self):
-        localtime = int(time()) 
-        return localtime
-
  
 class MyApp(wx.App):
     def OnInit(self):
