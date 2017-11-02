@@ -11,11 +11,6 @@ from win32process import GetWindowThreadProcessId
 import datetime
 import jsonlogwrite as logwrite
 
-def get_idle_duration():
-    "Returns idle time in seconds"
-    millis = win32api.GetTickCount() - win32api.GetLastInputInfo()
-    return millis / 1000.0
- 
 def get_threadname(HWND):
     "Return process info about a window handle id"
     pprocess = GetWindowThreadProcessId(HWND)
@@ -35,7 +30,8 @@ class TaskBarApp(wx.Frame):
         self.Bind(wx.EVT_TIMER, self.on_timer, id=self.ID_ICON_TIMER)
         self.SetIconTimer()
         self.Show(True)
-        self.last_idle = 0
+        self.last_input = 0
+        self.is_idle = False
         self.logfile = "logs/" + datetime.datetime.now().strftime('%Y%m%d.log')
         self.logger_check = 0
 
@@ -87,15 +83,15 @@ class TaskBarApp(wx.Frame):
             pass
  
     def on_timer(self, evt):
-        idle_duration = get_idle_duration()
-        if self.last_idle < idle_duration:
-            # idle is growing, just keep tracking it
-            self.last_idle = idle_duration
-      
-        if self.last_idle > idle_duration:
-            # idle got smaller, add the previous idle value to total_idle and keep going
-            self.data['idle_seconds'] = self.data['idle_seconds'] + self.last_idle
-            self.last_idle = 0
+        last_input = win32api.GetLastInputInfo()
+        if self.last_input == last_input:
+            self.is_idle = True
+        elif last_input > self.last_input and self.is_idle:
+            idle_secs = (last_input - self.last_input) / 1000.0
+            if idle_secs > 5:
+                self.data['idle_seconds'] = self.data['idle_seconds'] + idle_secs
+            self.is_idle = False
+        self.last_input = last_input
 
         # If current window is different from the last time we checked, log the info about
         # the previous one and start tracking the current one
@@ -122,7 +118,7 @@ class TaskBarApp(wx.Frame):
         procinfo = get_threadname(active_hwnd)
         self.data['process_name'] = procinfo.name()
         self.data['pid'] = procinfo.pid
-        self.data['idle_seconds'] = 0
+        self.data['idle_seconds'] = 0.0
         self.data['start_timestamp'] = str(datetime.datetime.now())
     
  
