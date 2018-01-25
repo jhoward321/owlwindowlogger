@@ -1,0 +1,5 @@
+psutil==5.4.3
+pywin32==222
+simplejson==3.13.2
+six==1.11.0
+wxPython==4.0.0b2
