@@ -3,7 +3,7 @@
 Originally from https://github.com/seanbuscay
 """
 
-import wx
+import wx, wx.adv
 import psutil #http://code.google.com/p/psutil/wiki/Documentation#Classes
 import win32api
 from win32gui import GetWindowText, GetForegroundWindow
@@ -22,11 +22,11 @@ class TaskBarApp(wx.Frame):
         wx.Frame.__init__(self, parent, -1, title, size=(1, 1), style=wx.FRAME_NO_TASKBAR | wx.NO_FULL_REPAINT_ON_RESIZE)
         self.ICON_STATE = 1
         self.ID_ICON_TIMER = wx.NewId()
-        self.tbicon = wx.TaskBarIcon()
+        self.tbicon = wx.adv.TaskBarIcon()
         icon = wx.Icon('logon.ico', wx.BITMAP_TYPE_ICO)
         self.tbicon.SetIcon(icon, 'Logging')
-        self.tbicon.Bind(wx.EVT_TASKBAR_LEFT_DCLICK, self.OnTaskBarLeftDClick)
-        self.tbicon.Bind(wx.EVT_TASKBAR_RIGHT_UP, self.OnTaskBarRightClick)
+        self.tbicon.Bind(wx.adv.EVT_TASKBAR_LEFT_DCLICK, self.OnTaskBarLeftDClick)
+        self.tbicon.Bind(wx.adv.EVT_TASKBAR_RIGHT_UP, self.OnTaskBarRightClick)
         self.Bind(wx.EVT_TIMER, self.on_timer, id=self.ID_ICON_TIMER)
         self.SetIconTimer()
         self.Show(True)
