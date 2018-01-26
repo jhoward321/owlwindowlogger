@@ -1,6 +1,6 @@
 
 """
-Originally from https://github.com/seanbuscay
+Adapted from https://github.com/seanbuscay
 """
 
 import wx, wx.adv
@@ -86,7 +86,7 @@ class TaskBarApp(wx.Frame):
         elif last_input > self.last_input and self.is_idle:
             idle_secs = (last_input - self.last_input) / 1000.0
             if idle_secs > 5:
-                self.data['idle_seconds'] = self.data['idle_seconds'] + idle_secs
+                self.data['idle_seconds'] += idle_secs
             self.is_idle = False
         self.last_input = last_input
 
