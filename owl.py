@@ -57,9 +57,6 @@ class TaskBarApp(wx.Frame):
         self.StopIconTimer()
         self.tbicon.Destroy()
         self.Close(True)
-        wx.GetApp().ProcessIdle()
-        wx.GetApp().Exit()
-        wx.Exit()
        
     def SetIconTimer(self):
         self.icontimer = wx.Timer(self, self.ID_ICON_TIMER)
