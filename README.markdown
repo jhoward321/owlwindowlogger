@@ -85,6 +85,8 @@ The following need installed on your system if they are not already:
 
 * (Optional) simplejson -https://github.com/simplejson/simplejson
 
+All can be installed by running `pip install -r requirements.txt`. In addition you'll need to finish setting up wxPython by running `python Scripts/pywin32_postinstall.py -install` adjusting the path according to your environment.
+
 #### Python Modules used:
 
 1. wx
