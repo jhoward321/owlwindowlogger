@@ -8,7 +8,7 @@ import psutil #http://code.google.com/p/psutil/wiki/Documentation#Classes
 import win32api
 from win32gui import GetWindowText, GetForegroundWindow
 from win32process import GetWindowThreadProcessId
-import datetime
+from datetime import datetime
 import jsonlogwrite as logwrite
 
 def get_threadname(HWND):
@@ -32,7 +32,7 @@ class TaskBarApp(wx.Frame):
         self.Show(True)
         self.last_input = 0
         self.is_idle = False
-        self.logfile = "logs/" + datetime.datetime.now().strftime('%Y%m%d.log')
+        self.logfile = "logs/" + datetime.utcnow().strftime('%Y%m%d.log')
         self.logger_check = 0
 
         # Startup logging
@@ -95,14 +95,14 @@ class TaskBarApp(wx.Frame):
         active_hwnd = GetForegroundWindow()
         window_title = GetWindowText(active_hwnd)
         if self.data['hwnd'] != active_hwnd or self.data['window_title'] != window_title:
-            self.data['end_timestamp'] = str(datetime.datetime.now())
+            self.data['end_timestamp'] = str(datetime.utcnow())
             logwrite.write(self.data, self.logfile)
             self.new_active_window()
 
         # update the log filename every 120s
         self.logger_check += 1
         if self.logger_check % 120 == 0:
-            self.logfile = "logs/" + datetime.datetime.now().strftime('%Y%m%d.log')
+            self.logfile = "logs/" + datetime.utcnow().strftime('%Y%m%d.log')
             self.logger_check = 0
 
     def new_active_window(self):
@@ -116,7 +116,7 @@ class TaskBarApp(wx.Frame):
         self.data['process_name'] = procinfo.name()
         self.data['pid'] = procinfo.pid
         self.data['idle_seconds'] = 0.0
-        self.data['start_timestamp'] = str(datetime.datetime.now())
+        self.data['start_timestamp'] = str(datetime.utcnow())
     
  
 class MyApp(wx.App):
