@@ -17,7 +17,7 @@ def get_threadname(HWND):
     p = psutil.Process(pprocess[1])
     return p
 
-class TaskBarApp(wx.Frame):
+class TrackerApp(wx.Frame):
     def __init__(self, parent, id, title):
         wx.Frame.__init__(self, parent, -1, title, size=(1, 1), style=wx.FRAME_NO_TASKBAR | wx.NO_FULL_REPAINT_ON_RESIZE)
         self.ICON_STATE = 1
@@ -121,7 +121,7 @@ class TaskBarApp(wx.Frame):
  
 class MyApp(wx.App):
     def OnInit(self):
-        frame = TaskBarApp(None, -1, ' ')
+        frame = TrackerApp(None, -1, ' ')
         frame.Center(wx.BOTH)
         frame.Show(True)
         return True
