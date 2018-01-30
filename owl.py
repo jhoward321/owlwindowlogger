@@ -3,13 +3,17 @@
 Adapted from https://github.com/seanbuscay
 """
 
-import wx, wx.adv
-import psutil #http://code.google.com/p/psutil/wiki/Documentation#Classes
+import wx
+import wx.adv
+import psutil  # http://code.google.com/p/psutil/wiki/Documentation#Classes
 import win32api
 from win32gui import GetWindowText, GetForegroundWindow
 from win32process import GetWindowThreadProcessId
 from datetime import datetime
 import jsonlogwrite as logwrite
+# import Models.models
+from Models.models import *
+
 
 def get_threadname(HWND):
     "Return process info about a window handle id"
@@ -17,28 +21,32 @@ def get_threadname(HWND):
     p = psutil.Process(pprocess[1])
     return p
 
+
 class TrackerApp(wx.Frame):
     def __init__(self, parent, id, title):
-        wx.Frame.__init__(self, parent, -1, title, size=(1, 1), style=wx.FRAME_NO_TASKBAR | wx.NO_FULL_REPAINT_ON_RESIZE)
+        wx.Frame.__init__(self, parent, -1, title, size=(1, 1),
+                          style=wx.FRAME_NO_TASKBAR | wx.NO_FULL_REPAINT_ON_RESIZE)
         self.ICON_STATE = 1
         self.ID_ICON_TIMER = wx.NewId()
         self.tbicon = wx.adv.TaskBarIcon()
         icon = wx.Icon('logon.ico', wx.BITMAP_TYPE_ICO)
         self.tbicon.SetIcon(icon, 'Logging')
-        self.tbicon.Bind(wx.adv.EVT_TASKBAR_LEFT_DCLICK, self.OnTaskBarLeftDClick)
+        self.tbicon.Bind(wx.adv.EVT_TASKBAR_LEFT_DCLICK,
+                         self.OnTaskBarLeftDClick)
         self.tbicon.Bind(wx.adv.EVT_TASKBAR_RIGHT_UP, self.OnTaskBarRightClick)
         self.Bind(wx.EVT_TIMER, self.on_timer, id=self.ID_ICON_TIMER)
         self.SetIconTimer()
         self.Show(True)
         self.last_input = 0
         self.is_idle = False
-        self.logfile = "logs/" + datetime.utcnow().strftime('%Y%m%d.log')
+        self.logfile = "logs/" + datetime.now().strftime('%Y%m%d.log')
         self.logger_check = 0
 
         # Startup logging
         logwrite.write(dict(log_message="Startup"), self.logfile)
+        self.session = TrackingSession.create(start_time=datetime.utcnow())
         self.new_active_window()
-        
+
     def OnTaskBarLeftDClick(self, evt):
         if self.ICON_STATE == 0:
             self.StartIconTimer()
@@ -50,35 +58,39 @@ class TrackerApp(wx.Frame):
             icon = wx.Icon('logoff.ico', wx.BITMAP_TYPE_ICO)
             self.tbicon.SetIcon(icon, 'Not Logging')
             self.ICON_STATE = 0
- 
+
     def OnTaskBarRightClick(self, evt):
         # @todo: Find better way to make sure all threads close.
-        logwrite.write(dict(log_message="user shutdown, right clicked"), self.logfile)
+        logwrite.write(
+            dict(log_message="user shutdown, right clicked"), self.logfile)
         self.StopIconTimer()
         self.tbicon.Destroy()
         self.Close(True)
-       
+
     def SetIconTimer(self):
         self.icontimer = wx.Timer(self, self.ID_ICON_TIMER)
         self.icontimer.Start(1000)
- 
+
     def StartIconTimer(self):
         try:
             self.icontimer.Start(1000)
             logwrite.write(dict(log_message="Starting timer"), self.logfile)
+            self.session = TrackingSession.create(start_time=datetime.utcnow())
             self.new_active_window()
         except:
             pass
- 
+
     def StopIconTimer(self):
         try:
             self.icontimer.Stop()
             logwrite.write(self.data, self.logfile)
             logwrite.write(dict(log_message="Timer stopped"), self.logfile)
+            self.session.end_time = datetime.utcnow()
+            self.session.save()
             self.new_active_window()
         except:
             pass
- 
+
     def on_timer(self, evt):
         last_input = win32api.GetLastInputInfo()
         if self.last_input == last_input:
@@ -117,18 +129,22 @@ class TrackerApp(wx.Frame):
         self.data['pid'] = procinfo.pid
         self.data['idle_seconds'] = 0.0
         self.data['start_timestamp'] = str(datetime.utcnow())
-    
- 
+
+
 class MyApp(wx.App):
     def OnInit(self):
         frame = TrackerApp(None, -1, ' ')
         frame.Center(wx.BOTH)
         frame.Show(True)
         return True
- 
+
+
+
+
 def main():
     app = MyApp(0)
     app.MainLoop()
- 
+
+
 if __name__ == '__main__':
     main()
