@@ -14,6 +14,9 @@ import jsonlogwrite as logwrite
 # import Models.models
 from Models.models import *
 
+#todo: fix idle logic to make more precise
+#todo: figure out null issue in db for end_time
+
 
 def get_threadname(HWND):
     "Return process info about a window handle id"
@@ -85,8 +88,12 @@ class TrackerApp(wx.Frame):
             self.icontimer.Stop()
             logwrite.write(self.data, self.logfile)
             logwrite.write(dict(log_message="Timer stopped"), self.logfile)
-            self.session.end_time = datetime.utcnow()
+
+            end_time = datetime.utcnow()
+            self.window.end_time = end_time
+            self.session.end_time = end_time
             self.session.save()
+            self.window.save()
             self.new_active_window()
         except:
             pass
@@ -99,6 +106,8 @@ class TrackerApp(wx.Frame):
             idle_secs = (last_input - self.last_input) / 1000.0
             if idle_secs > 5:
                 self.data['idle_seconds'] += idle_secs
+                self.window.idle_time += idle_secs
+                # self.window.save()
             self.is_idle = False
         self.last_input = last_input
 
@@ -107,8 +116,11 @@ class TrackerApp(wx.Frame):
         active_hwnd = GetForegroundWindow()
         window_title = GetWindowText(active_hwnd)
         if self.data['hwnd'] != active_hwnd or self.data['window_title'] != window_title:
-            self.data['end_timestamp'] = str(datetime.utcnow())
+            end_time = datetime.utcnow()
+            self.data['end_timestamp'] = str(end_time)
+            self.window.end_time = end_time
             logwrite.write(self.data, self.logfile)
+            self.window.save()
             self.new_active_window()
 
         # update the log filename every 120s
@@ -121,14 +133,22 @@ class TrackerApp(wx.Frame):
         self.data = {}
 
         active_hwnd = GetForegroundWindow()
+        w_title = GetWindowText(active_hwnd)
         self.data['hwnd'] = active_hwnd
-        self.data['window_title'] = GetWindowText(active_hwnd)
+        self.data['window_title'] = w_title
 
         procinfo = get_threadname(active_hwnd)
         self.data['process_name'] = procinfo.name()
         self.data['pid'] = procinfo.pid
         self.data['idle_seconds'] = 0.0
         self.data['start_timestamp'] = str(datetime.utcnow())
+
+        self.window = WindowRecord(
+            tracking_session=self.session,
+            process_name=procinfo.name(),
+            window_title=w_title,
+            pid=procinfo.pid,
+            idle_time=0.0)
 
 
 class MyApp(wx.App):
