@@ -16,6 +16,7 @@ from Models.models import *
 
 #todo: fix idle logic to make more precise
 #todo: figure out null issue in db for end_time
+#todo: move to sqlalchemy
 
 
 def get_threadname(HWND):

@@ -1,6 +1,6 @@
-peewee==3.0.2
 psutil==5.4.3
 pywin32==222
 simplejson==3.13.2
 six==1.11.0
+SQLAlchemy==1.2.2
 wxPython==4.0.0b2
