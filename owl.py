@@ -11,19 +11,20 @@ from win32gui import GetWindowText, GetForegroundWindow
 from win32process import GetWindowThreadProcessId
 from datetime import datetime
 import jsonlogwrite as logwrite
-# from contextlib import contextmanager
+from contextlib import contextmanager
 from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import create_engine
 from Models.models import *
 
-#todo: fix idle logic to make more precise
-#todo: figure out null issue in db for end_time
-#todo: move to sqlalchemy
-
-db_engine = create_engine('sqlite:///logrecords.db')
-session_factory = sessionmaker(bind=db_engine, autocommit=True)
+# todo: fix idle logic to make more precise
+# todo: figure out null issue in db for end_time
+# todo: close cleanly and add end times for both record and sessions
+db_engine = create_engine('sqlite:///logrecords.db', echo=False)
+Base.metadata.create_all(db_engine)
+session_factory = sessionmaker(bind=db_engine, autocommit=False)
 Session = scoped_session(session_factory)
-#https://www.blog.pythonlibrary.org/2012/06/04/wxpython-and-sqlalchemy-loading-random-sqlite-databases-for-viewing/
+
+# https://www.blog.pythonlibrary.org/2012/06/04/wxpython-and-sqlalchemy-loading-random-sqlite-databases-for-viewing/
 # @contextmanager
 # def session_scope():
 #     """Provide a transactional scope around a series of operations."""
@@ -71,6 +72,7 @@ class TrackerApp(wx.Frame):
         logwrite.write(dict(log_message="Startup"), self.logfile)
         self.tracking_session = TrackingSession(start_time=datetime.utcnow())
         self.db.add(self.tracking_session)
+        self.db.commit()
         self.new_active_window()
 
     def OnTaskBarLeftDClick(self, evt):
@@ -102,8 +104,10 @@ class TrackerApp(wx.Frame):
         try:
             self.icontimer.Start(1000)
             logwrite.write(dict(log_message="Starting timer"), self.logfile)
-            self.tracking_session = TrackingSession(start_time=datetime.utcnow())
+            self.tracking_session = TrackingSession(
+                start_time=datetime.utcnow())
             self.db.add(self.tracking_session)
+            self.db.commit()
             self.new_active_window()
         except:
             pass
@@ -118,6 +122,7 @@ class TrackerApp(wx.Frame):
             self.window.end_time = end_time
             self.tracking_session.end_time = end_time
             self.db.add_all([self.tracking_session, self.window])
+            self.db.commit()
             self.new_active_window()
         except:
             pass
@@ -132,6 +137,7 @@ class TrackerApp(wx.Frame):
                 self.data['idle_seconds'] += idle_secs
                 self.window.idle_time += idle_secs
                 self.db.add(self.window)
+                self.db.commit()
             self.is_idle = False
         self.last_input = last_input
 
@@ -144,6 +150,7 @@ class TrackerApp(wx.Frame):
             self.data['end_timestamp'] = str(end_time)
             self.window.end_time = end_time
             self.db.add(self.window)
+            self.db.commit()
             logwrite.write(self.data, self.logfile)
             self.new_active_window()
 
@@ -174,6 +181,7 @@ class TrackerApp(wx.Frame):
             pid=procinfo.pid,
             idle_time=0.0)
         self.db.add(self.window)
+        self.db.commit()
 
 
 class MyApp(wx.App):
@@ -182,8 +190,6 @@ class MyApp(wx.App):
         frame.Center(wx.BOTH)
         frame.Show(True)
         return True
-
-
 
 
 def main():
